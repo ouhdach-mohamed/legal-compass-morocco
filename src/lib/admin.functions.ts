@@ -1,29 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-
-async function assertAdmin(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from("user_roles")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Response("Forbidden", { status: 403 });
-}
+import { assertAdmin, isAdmin, supabaseAdmin } from "@/lib/admin.server";
 
 export const checkIsAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data } = await supabaseAdmin
-      .from("user_roles")
-      .select("id")
-      .eq("user_id", context.userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    return { isAdmin: !!data, userId: context.userId };
+    const ok = await isAdmin(context.userId);
+    return { isAdmin: ok, userId: context.userId };
   });
 
 export const getDashboardStats = createServerFn({ method: "GET" })
