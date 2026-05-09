@@ -7,10 +7,10 @@ import type { Database } from './types'
 
 
 export const requireSupabaseAuth = createMiddleware({ type: 'function' })
-  .client(async ({ next, headers }) => {
+  .client(async ({ next }) => {
     const { supabase } = await import('./client')
     const { data } = await supabase.auth.getSession()
-    const nextHeaders = new Headers(headers)
+    const nextHeaders = new Headers()
 
     if (data.session?.access_token) {
       nextHeaders.set('authorization', `Bearer ${data.session.access_token}`)
