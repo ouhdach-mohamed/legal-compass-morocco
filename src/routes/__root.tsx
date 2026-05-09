@@ -10,11 +10,6 @@ import {
 
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
-import { installServerFnAuth } from "@/integrations/supabase/server-fn-fetch.client";
-
-if (typeof window !== "undefined") {
-  installServerFnAuth();
-}
 
 function NotFoundComponent() {
   return (
