@@ -51,7 +51,8 @@ export function useAdminAuth(redirectIfNotAdmin = true) {
       cancelled = true;
       sub.subscription.unsubscribe();
     };
-  }, [check, navigate, redirectIfNotAdmin]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [redirectIfNotAdmin]);
 
   return state;
 }
