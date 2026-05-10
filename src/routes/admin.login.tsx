@@ -1,12 +1,23 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent, useEffect } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { Loader2, ShieldCheck, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { loginAdmin } from "@/lib/admin.functions";
+import { setAdminSession } from "@/hooks/useAdminAuth";
+import { useAdminLang } from "@/hooks/useAdminLang";
+import { ADMIN_LANGS } from "@/lib/admin-i18n";
 
 export const Route = createFileRoute("/admin/login")({
   component: AdminLogin,
@@ -14,100 +25,114 @@ export const Route = createFileRoute("/admin/login")({
 
 function AdminLogin() {
   const nav = useNavigate();
+  const { lang, setLang, t, isRTL } = useAdminLang();
+  const login = useServerFn(loginAdmin);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
-  // If already signed in, push them in
+  // If already signed in (token present), go to dashboard.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) nav({ to: "/admin" });
-    });
+    if (typeof window !== "undefined" && window.localStorage.getItem("mla.admin.token")) {
+      nav({ to: "/admin" });
+    }
   }, [nav]);
 
-  const signIn = async (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const r = await login({ data: { email, password } });
+      setAdminSession(r.token, r.email);
+      toast.success(t("loginSuccess"));
+      nav({ to: "/admin" });
+    } catch {
+      toast.error(t("invalidCredentials"));
+    } finally {
+      setBusy(false);
     }
-    nav({ to: "/admin" });
-  };
-
-  const signUp = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: window.location.origin + "/admin/login" },
-    });
-    setBusy(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success(
-      "Account created. If email confirmation is required, check your inbox. Then ask a system admin to grant you the admin role.",
-    );
   };
 
   return (
-    <div className="max-w-md mx-auto mt-12">
-      <div className="bg-card border border-border rounded-2xl p-6 shadow-elegant">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="grid place-items-center h-10 w-10 rounded-xl bg-primary/10 text-primary">
-            <ShieldCheck className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="font-bold text-lg">Admin access</h1>
-            <p className="text-xs text-muted-foreground">
-              Sign in to manage procedures and questions.
-            </p>
+    <div className="min-h-screen bg-background grid place-items-center px-4" dir={isRTL ? "rtl" : "ltr"}>
+      <div className="w-full max-w-md">
+        <div className="flex justify-end mb-3">
+          <div className="inline-flex items-center gap-1 bg-card border border-border rounded-full p-1">
+            <Globe className="h-3.5 w-3.5 mx-2 text-muted-foreground" />
+            {ADMIN_LANGS.map((l) => (
+              <button
+                key={l.code}
+                onClick={() => setLang(l.code)}
+                className={`px-3 py-1 text-xs rounded-full transition ${
+                  lang === l.code ? "bg-primary text-primary-foreground" : "hover:bg-secondary"
+                }`}
+              >
+                {l.label}
+              </button>
+            ))}
           </div>
         </div>
-        <Tabs defaultValue="signin">
-          <TabsList className="w-full grid grid-cols-2">
-            <TabsTrigger value="signin">Sign in</TabsTrigger>
-            <TabsTrigger value="signup">Sign up</TabsTrigger>
-          </TabsList>
-          <TabsContent value="signin">
-            <form onSubmit={signIn} className="space-y-4 mt-4">
-              <Field id="email-in" label="Email" type="email" value={email} onChange={setEmail} />
-              <Field id="pw-in" label="Password" type="password" value={password} onChange={setPassword} />
-              <Button type="submit" disabled={busy} className="w-full">
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign in"}
-              </Button>
-            </form>
-          </TabsContent>
-          <TabsContent value="signup">
-            <form onSubmit={signUp} className="space-y-4 mt-4">
-              <Field id="email-up" label="Email" type="email" value={email} onChange={setEmail} />
-              <Field id="pw-up" label="Password" type="password" value={password} onChange={setPassword} />
-              <Button type="submit" disabled={busy} className="w-full">
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create account"}
-              </Button>
-              <p className="text-[11px] text-muted-foreground">
-                After creating your account, ask the project owner to grant you the admin role.
-              </p>
-            </form>
-          </TabsContent>
-        </Tabs>
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-elegant">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="grid place-items-center h-10 w-10 rounded-xl bg-primary/10 text-primary">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="font-bold text-lg">{t("loginTitle")}</h1>
+              <p className="text-xs text-muted-foreground">{t("loginSubtitle")}</p>
+            </div>
+          </div>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="email">{t("email")}</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                dir="ltr"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="password">{t("password")}</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                dir="ltr"
+              />
+            </div>
+            <Button type="submit" disabled={busy} className="w-full">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t("signIn")}
+            </Button>
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setForgotOpen(true)}
+                className="text-xs text-primary hover:underline"
+              >
+                {t("forgotPassword")}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
-  );
-}
 
-function Field({
-  id, label, type, value, onChange,
-}: { id: string; label: string; type: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Input id={id} type={type} value={value} onChange={(e) => onChange(e.target.value)} required />
+      <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+        <DialogContent dir={isRTL ? "rtl" : "ltr"}>
+          <DialogHeader>
+            <DialogTitle>{t("forgotTitle")}</DialogTitle>
+            <DialogDescription>{t("forgotBody")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setForgotOpen(false)}>{t("close")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

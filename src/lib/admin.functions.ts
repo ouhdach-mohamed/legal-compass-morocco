@@ -1,13 +1,68 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { assertAdmin, isAdmin, supabaseAdmin } from "@/lib/admin.server";
+import { assertAdmin, supabaseAdmin } from "@/lib/admin.server";
+import {
+  readAdminConfig,
+  verifyAdminCredentials,
+  writeAdminConfig,
+} from "@/lib/admin-config.server";
 
+// ---------- Local admin auth (config-file based) ----------
+
+// Validates a (email, password) pair against config/admin.config.json.
+// Returns a base64 token the client stores in localStorage.
+export const loginAdmin = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({ email: z.string().email(), password: z.string().min(1) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const ok = await verifyAdminCredentials(data.email, data.password);
+    if (!ok) throw new Response("Invalid credentials", { status: 401 });
+    const token = Buffer.from(`${data.email}:${data.password}`, "utf8").toString("base64");
+    return { token, email: data.email };
+  });
+
+// Used by the client to verify the localStorage token is still valid.
 export const checkIsAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ok = await isAdmin(context.userId);
-    return { isAdmin: ok, userId: context.userId };
+    return { isAdmin: true, userId: context.userId, email: context.adminEmail };
+  });
+
+// Returns the currently configured admin email (used to prefill settings).
+export const getAdminAccount = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const cfg = await readAdminConfig();
+    return { email: cfg.email };
+  });
+
+// Updates email and/or password in the config file. Requires the current
+// password to confirm the change. Returns a fresh token for the client.
+export const updateAdminCredentials = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        currentPassword: z.string().min(1),
+        newEmail: z.string().email(),
+        newPassword: z.string().min(4).optional().or(z.literal("")),
+      })
+      .parse(d),
+  )
+  .handler(async ({ context, data }) => {
+    const cfg = await readAdminConfig();
+    if (cfg.password !== data.currentPassword) {
+      throw new Response("Current password is incorrect", { status: 400 });
+    }
+    const next = {
+      email: data.newEmail,
+      password: data.newPassword && data.newPassword.length > 0 ? data.newPassword : cfg.password,
+    };
+    await writeAdminConfig(next);
+    const token = Buffer.from(`${next.email}:${next.password}`, "utf8").toString("base64");
+    return { token, email: next.email, previousEmail: context.adminEmail };
   });
 
 export const getDashboardStats = createServerFn({ method: "GET" })

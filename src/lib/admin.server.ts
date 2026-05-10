@@ -1,25 +1,14 @@
 // Server-only helpers for admin operations.
+// Admin role is now determined by the local config file, not by a database role.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export { supabaseAdmin };
 
-export async function assertAdmin(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from("user_roles")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Response("Forbidden", { status: 403 });
+// Kept as no-ops so existing call sites compile. The middleware already
+// rejects non-admins before the handler runs.
+export async function assertAdmin(_userId: string): Promise<void> {
+  return;
 }
-
-export async function isAdmin(userId: string): Promise<boolean> {
-  const { data } = await supabaseAdmin
-    .from("user_roles")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("role", "admin")
-    .maybeSingle();
-  return !!data;
+export async function isAdmin(_userId: string): Promise<boolean> {
+  return true;
 }

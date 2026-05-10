@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { FileText, Inbox, Languages, Loader2 } from "lucide-react";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useAdminLang } from "@/hooks/useAdminLang";
 import { getDashboardStats } from "@/lib/admin.functions";
 import { pickLocalized } from "@/lib/i18n";
 
@@ -12,6 +13,7 @@ export const Route = createFileRoute("/admin/")({
 
 function AdminDashboard() {
   const auth = useAdminAuth();
+  const { t, lang } = useAdminLang();
   const fn = useServerFn(getDashboardStats);
   const [data, setData] = useState<Awaited<ReturnType<typeof fn>> | null>(null);
 
@@ -21,24 +23,22 @@ function AdminDashboard() {
   }, [auth.isAdmin, fn]);
 
   if (auth.loading) return <Center><Loader2 className="animate-spin" /></Center>;
-  if (!auth.isAdmin) return <NotAdmin email={auth.email} />;
+  if (!auth.isAdmin) return <p className="text-center mt-12">{t("notAuthorized")}</p>;
   if (!data) return <Center><Loader2 className="animate-spin" /></Center>;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Overview of legal content and user questions.
-        </p>
+        <h1 className="text-2xl font-bold">{t("dashboardTitle")}</h1>
+        <p className="text-sm text-muted-foreground">{t("dashboardSubtitle")}</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard icon={FileText} label="Procedures" value={data.proceduresCount} />
-        <StatCard icon={Inbox} label="Pending questions" value={data.pendingCount} />
-        <StatCard icon={Languages} label="Languages" value={3} />
+        <StatCard icon={FileText} label={t("proceduresCount")} value={data.proceduresCount} />
+        <StatCard icon={Inbox} label={t("pendingCount")} value={data.pendingCount} />
+        <StatCard icon={Languages} label={t("languagesCount")} value={3} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card title="Questions by language">
+        <Card title={t("questionsByLang")}>
           <div className="space-y-3">
             {(["ar", "fr", "en"] as const).map((l) => {
               const total = Object.values(data.questionsByLang).reduce((a, b) => a + b, 0) || 1;
@@ -58,12 +58,12 @@ function AdminDashboard() {
             })}
           </div>
         </Card>
-        <Card title="Procedures">
+        <Card title={t("proceduresList")}>
           <ul className="space-y-2 text-sm max-h-64 overflow-y-auto">
             {data.procedures.map((p) => (
-              <li key={p.id} className="flex justify-between border-b border-border pb-2 last:border-0">
-                <span>{pickLocalized(p.title as Record<string, string>, "en")}</span>
-                <span className="text-xs text-muted-foreground">{p.slug}</span>
+              <li key={p.id} className="flex justify-between gap-2 border-b border-border pb-2 last:border-0">
+                <span className="truncate">{pickLocalized(p.title as Record<string, string>, lang === "ar" ? "ar" : "en")}</span>
+                <span className="text-xs text-muted-foreground shrink-0">{p.slug}</span>
               </li>
             ))}
           </ul>
@@ -75,20 +75,6 @@ function AdminDashboard() {
 
 function Center({ children }: { children: React.ReactNode }) {
   return <div className="grid place-items-center min-h-[40vh] text-muted-foreground">{children}</div>;
-}
-
-function NotAdmin({ email }: { email: string | null }) {
-  return (
-    <div className="max-w-md mx-auto mt-12 bg-card border border-border rounded-2xl p-6">
-      <h2 className="font-bold mb-2">Not authorized</h2>
-      <p className="text-sm text-muted-foreground mb-3">
-        You are signed in{email ? ` as ${email}` : ""}, but you don't have the admin role yet.
-      </p>
-      <p className="text-xs text-muted-foreground">
-        The project owner must grant your account the admin role from the database.
-      </p>
-    </div>
-  );
 }
 
 function StatCard({ icon: Icon, label, value }: { icon: typeof FileText; label: string; value: number }) {

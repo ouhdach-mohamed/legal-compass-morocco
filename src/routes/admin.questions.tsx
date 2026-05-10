@@ -7,6 +7,7 @@ import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { listUnanswered, updateUnanswered, listProcedures } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 import { pickLocalized } from "@/lib/i18n";
+import { useAdminLang } from "@/hooks/useAdminLang";
 
 export const Route = createFileRoute("/admin/questions")({
   component: QuestionsPage,
@@ -25,6 +26,7 @@ type Proc = { id: string; slug: string; title: Record<string, string> };
 
 function QuestionsPage() {
   const auth = useAdminAuth();
+  const { t, lang: adminLang } = useAdminLang();
   const fnList = useServerFn(listUnanswered);
   const fnUpdate = useServerFn(updateUnanswered);
   const fnProcs = useServerFn(listProcedures);
@@ -41,7 +43,7 @@ function QuestionsPage() {
   useEffect(() => { if (auth.isAdmin) refresh(); }, [auth.isAdmin]);
 
   if (auth.loading) return <Loader2 className="animate-spin mx-auto mt-12" />;
-  if (!auth.isAdmin) return <p className="text-center mt-12">Not authorized.</p>;
+  if (!auth.isAdmin) return <p className="text-center mt-12">{t("notAuthorized")}</p>;
   if (!items) return <Loader2 className="animate-spin mx-auto mt-12" />;
 
   const filtered = filter === "pending" ? items.filter((q) => q.status === "pending") : items;
@@ -52,18 +54,20 @@ function QuestionsPage() {
     resolved_procedure_id: string | null = null,
   ) => {
     await fnUpdate({ data: { id, status, resolved_procedure_id } });
-    toast.success(status === "resolved" ? "Resolved" : "Ignored");
+    toast.success(status === "resolved" ? t("resolved") : t("ignored"));
     refresh();
   };
 
+  const filterLabel = (f: "pending" | "all") => (f === "pending" ? t("pending") : t("all"));
+  const statusLabel = (s: string) =>
+    s === "pending" ? t("pending") : s === "resolved" ? t("resolved") : s === "ignored" ? t("ignored") : s;
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold">Unanswered questions</h1>
-          <p className="text-sm text-muted-foreground">
-            Questions the bot couldn't match. Link them to a procedure or ignore.
-          </p>
+          <h1 className="text-2xl font-bold">{t("qTitle")}</h1>
+          <p className="text-sm text-muted-foreground">{t("qSubtitle")}</p>
         </div>
         <div className="flex gap-1">
           {(["pending", "all"] as const).map((f) => (
@@ -73,7 +77,7 @@ function QuestionsPage() {
               variant={filter === f ? "secondary" : "ghost"}
               onClick={() => setFilter(f)}
             >
-              {f}
+              {filterLabel(f)}
             </Button>
           ))}
         </div>
@@ -81,7 +85,7 @@ function QuestionsPage() {
 
       <div className="bg-card border border-border rounded-2xl divide-y divide-border">
         {filtered.length === 0 && (
-          <p className="p-6 text-sm text-muted-foreground text-center">Nothing here.</p>
+          <p className="p-6 text-sm text-muted-foreground text-center">{t("nothingHere")}</p>
         )}
         {filtered.map((q) => (
           <div key={q.id} className="p-4 space-y-2">
@@ -92,7 +96,7 @@ function QuestionsPage() {
               </span>
               <span className="text-[11px] ms-auto">
                 {q.status === "pending" ? null : (
-                  <span className="px-2 py-0.5 rounded-full bg-secondary">{q.status}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-secondary">{statusLabel(q.status)}</span>
                 )}
               </span>
             </div>
@@ -111,18 +115,18 @@ function QuestionsPage() {
                     if (e.target.value) act(q.id, "resolved", e.target.value);
                   }}
                 >
-                  <option value="">Link to procedure…</option>
+                  <option value="">{t("linkToProcedure")}</option>
                   {procs.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {pickLocalized(p.title, "en") || p.slug}
+                      {pickLocalized(p.title, adminLang === "ar" ? "ar" : "en") || p.slug}
                     </option>
                   ))}
                 </select>
                 <Button size="sm" variant="outline" onClick={() => act(q.id, "resolved")}>
-                  <Check className="h-3 w-3 me-1" /> Mark resolved
+                  <Check className="h-3 w-3 me-1" /> {t("markResolved")}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => act(q.id, "ignored")}>
-                  <X className="h-3 w-3 me-1" /> Ignore
+                  <X className="h-3 w-3 me-1" /> {t("ignore")}
                 </Button>
               </div>
             )}
