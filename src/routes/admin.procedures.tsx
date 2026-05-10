@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { pickLocalized, type Lang } from "@/lib/i18n";
+import { useAdminLang } from "@/hooks/useAdminLang";
 
 export const Route = createFileRoute("/admin/procedures")({
   component: ProceduresPage,
@@ -63,6 +64,7 @@ type FormState = {
 
 function ProceduresPage() {
   const auth = useAdminAuth();
+  const { t, lang: adminLang } = useAdminLang();
   const fnList = useServerFn(listProcedures);
   const fnUpsert = useServerFn(upsertProcedure);
   const fnDelete = useServerFn(deleteProcedure);
@@ -81,7 +83,7 @@ function ProceduresPage() {
   }, [auth.isAdmin]);
 
   if (auth.loading) return <Loader2 className="animate-spin mx-auto mt-12" />;
-  if (!auth.isAdmin) return <p className="text-center mt-12">Not authorized.</p>;
+  if (!auth.isAdmin) return <p className="text-center mt-12">{t("notAuthorized")}</p>;
   if (!data) return <Loader2 className="animate-spin mx-auto mt-12" />;
 
   const startNew = () => { setForm(emptyForm()); setOpen(true); };
@@ -112,20 +114,20 @@ function ProceduresPage() {
     setSaving(true);
     try {
       await fnUpsert({ data: form });
-      toast.success("Saved");
+      toast.success(t("saved"));
       setOpen(false);
       await refresh();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Save failed");
+      toast.error(e instanceof Error ? e.message : t("saveFailed"));
     } finally {
       setSaving(false);
     }
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Delete this procedure?")) return;
+    if (!confirm(t("confirmDelete"))) return;
     await fnDelete({ data: { id } });
-    toast.success("Deleted");
+    toast.success(t("deleted"));
     refresh();
   };
 
@@ -133,12 +135,12 @@ function ProceduresPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Procedures</h1>
-          <p className="text-sm text-muted-foreground">Manage legal procedures, steps, and keywords.</p>
+          <h1 className="text-2xl font-bold">{t("procTitle")}</h1>
+          <p className="text-sm text-muted-foreground">{t("procSubtitle")}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button onClick={startNew}><Plus className="h-4 w-4 me-1" /> New</Button>
+            <Button onClick={startNew}><Plus className="h-4 w-4 me-1" /> {t("newBtn")}</Button>
           </DialogTrigger>
           <ProcedureFormDialog
             form={form}
@@ -152,29 +154,29 @@ function ProceduresPage() {
 
       <div className="bg-card border border-border rounded-2xl divide-y divide-border">
         {data.procedures.length === 0 && (
-          <p className="p-6 text-sm text-muted-foreground text-center">No procedures yet.</p>
+          <p className="p-6 text-sm text-muted-foreground text-center">{t("noProcedures")}</p>
         )}
         {data.procedures.map((p) => (
           <div key={p.id} className="p-4 flex items-center gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-semibold truncate">
-                  {pickLocalized(p.title, "en") || p.slug}
+                  {pickLocalized(p.title, adminLang === "ar" ? "ar" : "en") || p.slug}
                 </span>
                 {!p.is_active && (
                   <span className="text-[10px] uppercase bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
-                    inactive
+                    {t("inactive")}
                   </span>
                 )}
               </div>
               <p className="text-xs text-muted-foreground truncate">
-                {p.slug} · {p.procedure_steps.length} steps · {p.keywords.length} keywords
+                {p.slug} · {p.procedure_steps.length} {t("steps")} · {p.keywords.length} {t("keywords")}
               </p>
             </div>
-            <Button size="icon" variant="ghost" onClick={() => startEdit(p)}>
+            <Button size="icon" variant="ghost" onClick={() => startEdit(p)} title={t("edit")}>
               <Pencil className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" onClick={() => remove(p.id)}>
+            <Button size="icon" variant="ghost" onClick={() => remove(p.id)} title={t("delete")}>
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
           </div>
